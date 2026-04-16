@@ -76,10 +76,14 @@ fi
 DECISION="$(echo "$JSON" | jq -r '.decision // empty')"
 case "$DECISION" in
   READY)
-    log "classify: #$ISSUE READY"
+    SUMMARY="$(echo "$JSON" | jq -r '.summary // ""' | tr '\n' ' ' | head -c 500)"
+    log "classify: #$ISSUE READY${SUMMARY:+ — $SUMMARY}"
     write_state_kv "$STATE_FILE" status "ready"
     write_state_kv "$STATE_FILE" last_issue_updated "$UPDATED"
     write_state_kv "$STATE_FILE" attempts "0"
+    # Summary may contain '=' which is preserved by write_state_kv (it only
+    # splits on the first '='). Empty is fine.
+    write_state_kv "$STATE_FILE" summary "$SUMMARY"
     exit 0
     ;;
   NEEDS_INFO)

@@ -12,18 +12,6 @@ MAX_ATTEMPTS=3
 
 cd "$REPO_ROOT"
 
-# Recovery: if a prior cycle crashed with us stuck on an auto/ branch with
-# stray files, reset back to main cleanly. We only touch this when the current
-# branch is one we own.
-CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
-if [[ "$CURRENT_BRANCH" == "${AUTO_BRANCH_PREFIX}"* ]]; then
-  log "work: recovering — found stuck on auto branch $CURRENT_BRANCH; resetting"
-  git reset --hard --quiet || true
-  git clean -fd --quiet || true
-  git checkout main --quiet || true
-  git branch -D "$CURRENT_BRANCH" --quiet 2>/dev/null || true
-fi
-
 # Refuse if repo has uncommitted changes — we won't pollute user's WIP.
 if ! git diff --quiet || ! git diff --cached --quiet; then
   log "work: repo has uncommitted changes, skipping #$ISSUE"
@@ -44,10 +32,18 @@ git fetch origin --quiet
 git checkout main --quiet
 git pull --ff-only origin main --quiet
 
+# Local leftover from a crashed prior attempt at THIS issue (state still
+# "ready" means no PR was ever opened) — safe to discard and rebuild.
 if git rev-parse --verify "$BRANCH" >/dev/null 2>&1; then
-  log "work: branch $BRANCH already exists locally, skipping"
-  exit 1
+  if [[ "$(get_state_kv "$STATE_FILE" status)" == "ready" ]]; then
+    log "work: removing leftover local $BRANCH from previous crashed attempt"
+    git branch -D "$BRANCH" --quiet
+  else
+    log "work: branch $BRANCH exists locally and issue isn't ready; skipping"
+    exit 1
+  fi
 fi
+
 if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
   log "work: branch $BRANCH already exists on origin, skipping"
   exit 1
@@ -56,10 +52,14 @@ git checkout -b "$BRANCH" --quiet
 
 BEFORE_SHA="$(git rev-parse HEAD)"
 
+SUMMARY="$(get_state_kv "$STATE_FILE" summary)"
+[[ -z "$SUMMARY" ]] && SUMMARY="(classifier did not provide a summary)"
+
 PROMPT="$(cat "$PROMPTS_DIR/work.md")"
 PROMPT="${PROMPT//\{\{ISSUE_NUMBER\}\}/$ISSUE}"
 PROMPT="${PROMPT//\{\{TITLE\}\}/$TITLE}"
 PROMPT="${PROMPT//\{\{LABELS\}\}/$LABELS_TXT}"
+PROMPT="${PROMPT//\{\{SUMMARY\}\}/$SUMMARY}"
 PROMPT="${PROMPT//\{\{BODY\}\}/$BODY}"
 
 ATTACHMENTS="$(download_attachments "$BODY" "$ISSUE")"
@@ -137,15 +137,22 @@ log "work: opening draft PR for #$ISSUE"
 PR_BODY="Closes #$ISSUE
 
 Implemented by workflow automation. Review the diff and mark ready-for-review if it looks correct."
-if ! gh pr create --draft --base main --head "$BRANCH" \
-      --title "$TITLE" --body "$PR_BODY" >/dev/null; then
-  # Push succeeded but PR creation failed (network/rate limit). Leave the
-  # remote branch and mark pr_pending so next cycle retries just the PR step.
-  log "work: gh pr create failed for $BRANCH; will retry PR creation next cycle"
-  write_state_kv "$STATE_FILE" status "pr_pending"
-  write_state_kv "$STATE_FILE" pr_branch "$BRANCH"
-  git checkout main --quiet
-  exit 1
+PR_CREATED=0
+for attempt in 1 2 3; do
+  if gh pr create --draft --base main --head "$BRANCH" \
+       --title "$TITLE" --body "$PR_BODY" >/dev/null 2>&1; then
+    PR_CREATED=1
+    break
+  fi
+  log "work: gh pr create attempt $attempt failed; sleep ${attempt}s then retry"
+  sleep "$attempt"
+done
+if [[ "$PR_CREATED" -eq 0 ]]; then
+  # All retries failed. Delete the remote branch so next cycle starts clean
+  # rather than hitting "branch already exists on origin" forever.
+  log "work: gh pr create exhausted retries; deleting remote $BRANCH"
+  git push origin --delete "$BRANCH" --quiet 2>/dev/null || true
+  bump_attempts_then_bail "gh pr create failed after retries"
 fi
 PR_NUMBER="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
 if [[ -z "$PR_NUMBER" ]]; then

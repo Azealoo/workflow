@@ -1,5 +1,11 @@
 You are implementing GitHub issue #{{ISSUE_NUMBER}} in the current repository.
 
+The classifier has already read this issue and produced a short plan:
+
+CLASSIFIER SUMMARY: {{SUMMARY}}
+
+Use the summary only as orientation. The authoritative source is the issue body itself — if the summary and the issue disagree, follow the issue.
+
 Follow the repository's CLAUDE.md principles strictly:
 - Think before coding.
 - Simplicity first — no unrequested abstractions.

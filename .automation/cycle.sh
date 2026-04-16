@@ -35,7 +35,7 @@ while read -r row; do
 
   do_classify=0
   case "$CURRENT" in
-    ready|pr_opened|pr_pending)
+    ready|pr_opened)
       # handled by later steps
       ;;
     blocked|skipped|closed|failed|no_change)

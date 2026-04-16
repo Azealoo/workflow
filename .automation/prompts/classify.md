@@ -20,13 +20,15 @@ only output is the JSON object described below — nothing else.
 
 Respond with EXACTLY one JSON object and nothing else:
 
-{"decision": "READY"}
+{"decision": "READY", "summary": "one or two sentence plan of what to change, in your own words, based only on the issue"}
 
 or
 
 {"decision": "NEEDS_INFO", "questions": ["question 1", "question 2"]}
 
-Keep questions short, specific, and actionable. Maximum 4 questions.
+The summary is passed verbatim to the implementer as a head-start. Keep it under 300 chars, mention the files or areas you expect to touch if obvious, and never invent requirements not present in the issue.
+
+Keep NEEDS_INFO questions short, specific, and actionable. Maximum 4 questions.
 
 <issue>
 TITLE: {{TITLE}}
