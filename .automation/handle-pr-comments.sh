@@ -98,7 +98,7 @@ set +e
 RESPONSE="$(claude -p "$PROMPT" \
   --permission-mode bypassPermissions \
   --allowedTools "Read,Write,Edit,Glob,Grep,Bash" \
-  --disallowedTools "WebFetch,WebSearch,Bash(git push:*),Bash(git remote:*),Bash(git config:*),Bash(gh:*),Bash(curl:*),Bash(wget:*),Bash(ssh:*),Bash(scp:*),Bash(rsync:*),Bash(nc:*)" \
+  --disallowedTools "$CLAUDE_DENYLIST" \
   --output-format text \
   --max-budget-usd 3.00 \
   --no-session-persistence 2>&1)"
@@ -124,6 +124,14 @@ fi
 
 AFTER_SHA="$(git rev-parse HEAD)"
 if [[ "$BEFORE_SHA" != "$AFTER_SHA" ]]; then
+  FORBIDDEN="$(forbidden_paths_in_range "$BEFORE_SHA" "$AFTER_SHA" || true)"
+  if [[ -n "$FORBIDDEN" ]]; then
+    log "pr-comments: PR #$PR commits touched forbidden paths, refusing to push:"
+    while IFS= read -r p; do log "  $p"; done <<< "$FORBIDDEN"
+    git reset --hard "$BEFORE_SHA" --quiet
+    git checkout main --quiet
+    exit 1
+  fi
   git push origin "$BRANCH" --quiet
   log "pr-comments: pushed updates to $BRANCH"
 else

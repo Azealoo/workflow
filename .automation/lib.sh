@@ -78,6 +78,37 @@ is_numeric() { [[ "${1:-}" =~ ^[0-9]+$ ]]; }
 
 branch_for_issue() { echo "${AUTO_BRANCH_PREFIX}$1"; }
 
+# Claude CLI's bypassPermissions ignores whole-tool denials like Write/Edit,
+# so even with those listed in --disallowedTools Claude can still touch any
+# path in the repo. We enforce the "don't touch infra files" rule by scanning
+# the commit range Claude produced and aborting if it strayed outside code.
+# Echoes each forbidden path; returns 1 if any are found.
+forbidden_paths_in_range() {
+  local before="$1" after="$2"
+  [[ "$before" == "$after" ]] && return 0
+  local changed forbidden
+  changed="$(git diff --name-only "$before" "$after")" || return 2
+  forbidden="$(printf '%s\n' "$changed" \
+    | grep -E '^(\.automation/|\.github/|\.git/hooks/|\.claude/)' || true)"
+  if [[ -n "$forbidden" ]]; then
+    printf '%s\n' "$forbidden"
+    return 1
+  fi
+  return 0
+}
+
+# Denylist applied to every Claude invocation that runs Bash. Whole-tool
+# entries (WebFetch, WebSearch) and sub-pattern entries (Bash(x:*)) are both
+# enforced when --permission-mode is NOT bypassPermissions. Under
+# bypassPermissions only the sub-pattern entries are reliably enforced, so
+# everything dangerous is expressed as a Bash(...) pattern.
+CLAUDE_DENYLIST="WebFetch,WebSearch"
+CLAUDE_DENYLIST="$CLAUDE_DENYLIST,Bash(git push:*),Bash(git remote:*),Bash(git config:*),Bash(git fetch:*)"
+CLAUDE_DENYLIST="$CLAUDE_DENYLIST,Bash(gh:*),Bash(curl:*),Bash(wget:*),Bash(ssh:*),Bash(scp:*),Bash(rsync:*),Bash(nc:*)"
+CLAUDE_DENYLIST="$CLAUDE_DENYLIST,Bash(python:*),Bash(python3:*),Bash(node:*),Bash(perl:*),Bash(ruby:*)"
+CLAUDE_DENYLIST="$CLAUDE_DENYLIST,Bash(socat:*),Bash(openssl:*),Bash(ftp:*),Bash(bash -c:*),Bash(sh -c:*)"
+export CLAUDE_DENYLIST
+
 # Download image attachments referenced in an issue/PR body.
 # Echoes one local path per line. Restricted to trusted GitHub hosts,
 # capped at 5 files and 10 MB each.

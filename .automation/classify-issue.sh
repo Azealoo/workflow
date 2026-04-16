@@ -76,7 +76,13 @@ fi
 DECISION="$(echo "$JSON" | jq -r '.decision // empty')"
 case "$DECISION" in
   READY)
-    SUMMARY="$(echo "$JSON" | jq -r '.summary // ""' | tr '\n' ' ' | head -c 500)"
+    # Strip CR/LF and restrict to printable ASCII-ish characters so the
+    # summary can't inject a synthetic "status=" or similar line into the
+    # state file via newline/CR escapes. Cap length.
+    SUMMARY="$(echo "$JSON" | jq -r '.summary // ""' \
+      | tr -d '\r' | tr '\n' ' ' \
+      | LC_ALL=C tr -c '[:print:]' ' ' \
+      | head -c 500)"
     log "classify: #$ISSUE READY${SUMMARY:+ — $SUMMARY}"
     write_state_kv "$STATE_FILE" status "ready"
     write_state_kv "$STATE_FILE" last_issue_updated "$UPDATED"

@@ -92,7 +92,7 @@ set +e
 RESPONSE="$(claude -p "$PROMPT" \
   --permission-mode bypassPermissions \
   --allowedTools "Read,Write,Edit,Glob,Grep,Bash" \
-  --disallowedTools "WebFetch WebSearch Bash(git push:*) Bash(git remote:*) Bash(git config:*) Bash(gh:*) Bash(curl:*) Bash(wget:*) Bash(ssh:*) Bash(scp:*) Bash(rsync:*) Bash(nc:*)" \
+  --disallowedTools "$CLAUDE_DENYLIST" \
   --output-format text \
   --max-budget-usd 3.00 \
   --no-session-persistence 2>&1)"
@@ -122,6 +122,20 @@ if [[ "$BEFORE_SHA" == "$AFTER_SHA" ]]; then
   git checkout main --quiet
   git branch -D "$BRANCH" --quiet
   write_state_kv "$STATE_FILE" status "no_change"
+  exit 1
+fi
+
+# Safety net: the prompt tells Claude not to touch .automation/ or .github/
+# but under --permission-mode bypassPermissions the CLI does not enforce
+# whole-tool denials for Write/Edit, so a prompt-injected issue could get
+# Claude to modify infra files anyway. Reject the branch if it happened.
+FORBIDDEN="$(forbidden_paths_in_range "$BEFORE_SHA" "$AFTER_SHA" || true)"
+if [[ -n "$FORBIDDEN" ]]; then
+  log "work: #$ISSUE commit touched forbidden paths, refusing to push:"
+  while IFS= read -r p; do log "  $p"; done <<< "$FORBIDDEN"
+  git checkout main --quiet
+  git branch -D "$BRANCH" --quiet
+  write_state_kv "$STATE_FILE" status "blocked"
   exit 1
 fi
 
