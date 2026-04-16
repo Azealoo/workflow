@@ -6,6 +6,7 @@ AUTO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$AUTO_ROOT/.." && pwd)"
 STATE_DIR="$AUTO_ROOT/state"
 LOG_DIR="$AUTO_ROOT/logs"
+DRAFTS_DIR="$AUTO_ROOT/drafts"
 PROMPTS_DIR="$AUTO_ROOT/prompts"
 PAUSE_FILE="$AUTO_ROOT/PAUSE"
 LOCK_FILE="$AUTO_ROOT/state/.lock"
@@ -14,7 +15,7 @@ SKIP_ISSUE_LABELS=("no-auto" "blocked" "wontfix" "duplicate" "question")
 SKIP_PR_LABELS=("no-auto")
 AUTO_BRANCH_PREFIX="auto/issue-"
 
-mkdir -p "$STATE_DIR" "$LOG_DIR"
+mkdir -p "$STATE_DIR" "$LOG_DIR" "$DRAFTS_DIR"
 
 log() {
   local ts

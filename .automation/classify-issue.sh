@@ -65,13 +65,21 @@ case "$DECISION" in
     ;;
   NEEDS_INFO)
     QUESTIONS="$(echo "$JSON" | jq -r '.questions[]?' | sed 's/^/- /')"
-    BODY_COMMENT="**autoreason classifier** — this issue isn't ready for automated implementation yet.\n\nPlease clarify:\n\n$QUESTIONS\n\n_I'll re-check once the issue body is updated._"
-    log "classify: #$ISSUE NEEDS_INFO, posting comment"
-    # Post only if we haven't already commented for this updated state.
+    DRAFT_FILE="$DRAFTS_DIR/issue-$ISSUE.md"
     LAST_CLASSIFIED_AT="$(get_state_kv "$STATE_FILE" last_issue_updated)"
     if [[ "$LAST_CLASSIFIED_AT" != "$UPDATED" ]]; then
-      printf '%b' "$BODY_COMMENT" | gh issue comment "$ISSUE" --body-file - >/dev/null
+      {
+        echo "<!-- DRAFT for issue #$ISSUE — review, edit, then post with:"
+        echo "     gh issue comment $ISSUE --body-file $DRAFT_FILE  -->"
+        echo ""
+        echo "This issue isn't ready for automated implementation yet. Please clarify:"
+        echo ""
+        echo "$QUESTIONS"
+      } > "$DRAFT_FILE"
+      log "classify: #$ISSUE NEEDS_INFO — draft saved to $DRAFT_FILE"
       write_state_kv "$STATE_FILE" last_issue_updated "$UPDATED"
+    else
+      log "classify: #$ISSUE NEEDS_INFO — already drafted, skipping"
     fi
     write_state_kv "$STATE_FILE" status "needs_info"
     exit 1

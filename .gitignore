@@ -1,5 +1,12 @@
 .claude/settings.local.json
 .automation/state/
 .automation/logs/
+.automation/drafts/
 .automation/PAUSE
 *.log
+.venv/
+experiments/
+human_eval/
+human_eval_answer_key.json
+knowledge/
+tasks/
