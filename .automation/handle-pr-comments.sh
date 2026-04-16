@@ -107,6 +107,11 @@ set -e
 
 printf '%s\n' "$RESPONSE" | tail -20
 
+# Discard uncommitted/untracked leftovers before any bailout. Otherwise dirty
+# state would follow us back to main on checkout.
+git reset --hard HEAD --quiet 2>/dev/null || true
+git clean -fd --quiet 2>/dev/null || true
+
 # Only treat as BLOCKED if Claude emitted it as its final non-empty line —
 # avoids matching "BLOCKED:" appearing inside a code block or quoted comment.
 LAST_LINE="$(printf '%s\n' "$RESPONSE" | awk 'NF {last=$0} END {print last}')"

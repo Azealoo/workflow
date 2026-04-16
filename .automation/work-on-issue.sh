@@ -101,6 +101,12 @@ set -e
 
 printf '%s\n' "$RESPONSE" | tail -20
 
+# Discard any uncommitted work Claude left behind. Otherwise modified tracked
+# files and untracked debris would follow us back to main on checkout. We
+# only trust what Claude committed.
+git reset --hard HEAD --quiet 2>/dev/null || true
+git clean -fd --quiet 2>/dev/null || true
+
 # Match BLOCKED only on the final non-empty line so we don't false-positive on
 # a literal "BLOCKED:" inside a code block Claude produced.
 LAST_LINE="$(printf '%s\n' "$RESPONSE" | awk 'NF {last=$0} END {print last}')"
