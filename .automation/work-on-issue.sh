@@ -48,6 +48,14 @@ PROMPT="${PROMPT//\{\{TITLE\}\}/$TITLE}"
 PROMPT="${PROMPT//\{\{LABELS\}\}/$LABELS_TXT}"
 PROMPT="${PROMPT//\{\{BODY\}\}/$BODY}"
 
+ATTACHMENTS="$(download_attachments "$BODY" "$ISSUE")"
+if [[ -n "$ATTACHMENTS" ]]; then
+  COUNT="$(echo "$ATTACHMENTS" | wc -l)"
+  log "work: #$ISSUE has $COUNT image attachment(s)"
+  PROMPT+=$'\n\nATTACHMENTS — read each of these files before implementing:\n'
+  while IFS= read -r p; do PROMPT+="- $p"$'\n'; done <<< "$ATTACHMENTS"
+fi
+
 log "work: invoking Claude for #$ISSUE"
 set +e
 RESPONSE="$(claude -p "$PROMPT" \

@@ -37,9 +37,21 @@ PROMPT="${PROMPT//\{\{LABELS\}\}/$LABELS_TXT}"
 PROMPT="${PROMPT//\{\{AUTHOR\}\}/$AUTHOR}"
 PROMPT="${PROMPT//\{\{BODY\}\}/$BODY}"
 
+# Download image attachments and append them as references for Claude to read.
+ATTACHMENTS="$(download_attachments "$BODY" "$ISSUE")"
+if [[ -n "$ATTACHMENTS" ]]; then
+  COUNT="$(echo "$ATTACHMENTS" | wc -l)"
+  log "classify: #$ISSUE has $COUNT image attachment(s)"
+  PROMPT+=$'\n\nATTACHMENTS — read each of these files before deciding:\n'
+  while IFS= read -r p; do PROMPT+="- $p"$'\n'; done <<< "$ATTACHMENTS"
+  TOOLS="Read"
+else
+  TOOLS=""
+fi
+
 log "classify: asking Claude about #$ISSUE"
 RESPONSE="$(claude -p "$PROMPT" \
-  --tools "" \
+  --allowedTools "$TOOLS" \
   --permission-mode default \
   --output-format text \
   --max-budget-usd 0.50 \

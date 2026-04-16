@@ -75,3 +75,41 @@ has_skip_label() {
 }
 
 branch_for_issue() { echo "${AUTO_BRANCH_PREFIX}$1"; }
+
+# Download image attachments referenced in an issue/PR body.
+# Echoes one local path per line. Caps each file at 10 MB.
+download_attachments() {
+  local body="$1" issue="$2"
+  local dest="$STATE_DIR/attachments/issue-$issue"
+  mkdir -p "$dest"
+  rm -f "$dest"/* 2>/dev/null || true
+
+  local urls
+  urls="$(printf '%s\n' "$body" \
+    | grep -oE 'https?://[A-Za-z0-9._/~%?=&#+:@-]+' \
+    | grep -iE '\.(png|jpe?g|gif|webp)(\?|$)|user-attachments/assets|user-images\.githubusercontent' \
+    | sort -u || true)"
+
+  [[ -z "$urls" ]] && return 0
+
+  local i=0
+  while IFS= read -r url; do
+    [[ -z "$url" ]] && continue
+    i=$((i+1))
+    local ext
+    ext="$(echo "$url" | grep -oiE '\.(png|jpe?g|gif|webp)(\?|$)' | head -1 | tr -d '.?' | tr '[:upper:]' '[:lower:]')"
+    [[ -z "$ext" ]] && ext="png"
+    local path="$dest/attachment-$i.$ext"
+    if wget -q --timeout=20 --tries=2 --max-redirect=5 -O "$path" "$url" 2>/dev/null; then
+      local size
+      size=$(stat -c%s "$path" 2>/dev/null || echo 0)
+      if [[ "$size" -gt 0 && "$size" -lt 10485760 ]]; then
+        echo "$path"
+      else
+        rm -f "$path"
+      fi
+    else
+      rm -f "$path"
+    fi
+  done <<< "$urls"
+}
