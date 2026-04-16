@@ -1,0 +1,25 @@
+[Unit]
+Description=workflow cycle — classify issues, implement ready ones, address PR comments
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Default: repo cloned at ~/workflow. Edit both lines if you put it elsewhere.
+WorkingDirectory=%h/workflow
+ExecStart=%h/workflow/.automation/cycle.sh
+Nice=10
+TimeoutStartSec=12min
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:%h/.local/bin
+
+# No systemd sandboxing: the service calls `gh` which is installed as a snap,
+# and snap-confine is setuid root — it needs to gain privileges to set up its
+# own confinement. NoNewPrivileges=yes breaks it, and most ProtectX/Restrict
+# directives imply NoNewPrivileges. Security for this service therefore relies
+# on (a) the Claude allow/deny tool list in work-on-issue.sh and
+# handle-pr-comments.sh, (b) the prompt-injection fencing in prompts/*.md, and
+# (c) the repo-collaborator-only filter on PR comments. If you reinstall gh
+# via apt, add back NoNewPrivileges=yes + PrivateDevices=yes + ProtectKernel*.
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=Run workflow cycle every 15 minutes
+Requires=workflow.service
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+AccuracySec=30s
+Persistent=true
+Unit=workflow.service
+
+[Install]
+WantedBy=timers.target
